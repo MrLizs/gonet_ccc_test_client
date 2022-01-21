@@ -1,0 +1,1 @@
+# gonet framework tests the client of cocoscreator 3.4

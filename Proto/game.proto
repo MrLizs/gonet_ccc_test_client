@@ -1,0 +1,9 @@
+syntax = "proto3";
+package message;
+
+message PlayerData{
+    int64 PlayerID = 1;
+    string PlayerName = 2;
+    int64 PlayerGold = 3;
+    uint32 PlayerStatus = 4;
+}

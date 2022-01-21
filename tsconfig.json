@@ -1,0 +1,11 @@
+{
+  /* Base configuration. Do not edit this field. */
+  "extends": "./temp/tsconfig.cocos.json",
+  /* Add your custom configuration here. */
+  "compilerOptions": {
+    "target": "esnext", /* 指定编译之后的版本目标: 'ES3' (default), 'ES5', 'ES2015', 'ES2016', 'ES2017', 'ES2018', 'ES2019' or 'ESNEXT'. */
+    "module": "esnext", /* 指定要使用的模块标准: 'none', 'commonjs', 'amd', 'system', 'umd', 'es2015', or 'ESNext'. */
+    "allowSyntheticDefaultImports": true,
+    "strict": false
+  }
+}

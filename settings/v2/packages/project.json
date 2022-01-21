@@ -1,0 +1,14 @@
+{
+  "general": {
+    "designResolution": {
+      "width": 720,
+      "height": 1440
+    }
+  },
+  "layer": [
+    {
+      "name": "drawNode",
+      "value": 2
+    }
+  ]
+}

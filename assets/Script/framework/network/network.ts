@@ -34,6 +34,7 @@ var HeardPacket;
 function init(): void {
 	console.log('Network initSocket...');
 	MySocket = new WebSocket("ws://127.0.0.1:31700/ws");
+	MySocket.binaryType = 'arraybuffer';
 
 	MySocket.onopen = function (evt) {
 		console.log('Network onopen...');
@@ -50,13 +51,8 @@ function init(): void {
 	};
 
 	MySocket.onmessage = function (evt) {
-		let b_data = <Blob>evt.data
-		let reader = new FileReader()
-		reader.onload = function () {
-			var aa = new Uint8Array(<ArrayBuffer>this.result);
-			Packet.ReceivePacket(aa);
-		}
-		reader.readAsArrayBuffer(b_data)
+		var _data = new Uint8Array(evt.data);
+		Packet.ReceivePacket(_data);
 	};
 
 	MySocket.onerror = function (evt) {
@@ -69,10 +65,6 @@ function init(): void {
 		isInit = false;
 		clearInterval(HeardPacket)
 	};
-
-	MySocket.addEventListener("error", function (event) {
-		console.log(event)
-	})
 }
 
 function LoginGate() {

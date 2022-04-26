@@ -1,3 +1,4 @@
+import { log } from "cc";
 
 const BigMath_Pow = (num, pow) => {
     let total;
@@ -9,7 +10,6 @@ const BigMath_Pow = (num, pow) => {
 }
 
 var k: bigint = 0n;
-
 export default class Dh {
     private static _instance: Dh;
     public static get instance(): Dh {
@@ -18,7 +18,6 @@ export default class Dh {
         }
         return this._instance;
     }
-
     q: bigint;
     a: bigint;
     x: bigint;
@@ -37,7 +36,6 @@ export default class Dh {
         this.generatePrik();
         this.generatePubk();
     }
-
     ExchangePubk(key) {
         this.Y2 = BigInt(key);
     }

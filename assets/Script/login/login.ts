@@ -1,11 +1,12 @@
 
-import { _decorator, Component, Node, director, Label, EditBoxComponent, Prefab, instantiate, find } from 'cc';
+import { _decorator, Component, Node, director, Label, Prefab, instantiate } from 'cc';
 import { clientEvent } from '../framework/clientEvent';
-import { Packet } from '../framework/network/Packet';
+import { Network, Packet } from '../framework/network/Packet';
 import proto from "../../Proto.js/proto.js";
 import Dh from '../framework/network/dh';
 import { Md5 } from '../framework/md5';
 import { playerMgr } from '../data/playerMgr';
+import dh from '../framework/network/dh';
 const message = proto.message;
 
 const { ccclass, property } = _decorator;
@@ -44,69 +45,48 @@ export class login extends Component {
     start() {
         this.mask.active = true;
         this.errLabel.node.active = false;
+        Network.init()
     }
 
     onLoad() {
         Dh.instance.ExchangePubk(0n);
         clientEvent.on("NetConnect", this.netconnect, this)
-        clientEvent.on("GateLogincompleted", this.GateLogincompleted, this)
-        clientEvent.on("AccountLoginError", this.AccLoginError, this)
-        clientEvent.on("AccountLoginCompleted", this.AccountLoginCompleted, this)
-        clientEvent.on("W_C_CreatePlayerResponse", this.W_C_CreatePlayerResponse, this)
-        clientEvent.on("A_C_RegisterResponse", this.A_C_RegisterResponse, this)
+        clientEvent.on("SelectPlayerResponse", this.SelectPlayerResponse, this)
+        clientEvent.on("LoginAccountResponse", this.LoginAccountResponse, this)
 
     }
 
     onDestroy() {
         clientEvent.off("NetConnect", this.netconnect, this)
-        clientEvent.off("GateLogincompleted", this.GateLogincompleted, this)
-        clientEvent.off("AccountLoginError", this.AccLoginError, this)
-        clientEvent.off("AccountLoginCompleted", this.AccountLoginCompleted, this)
-        clientEvent.off("W_C_CreatePlayerResponse", this.W_C_CreatePlayerResponse, this)
-        clientEvent.off("A_C_RegisterResponse", this.A_C_RegisterResponse, this)
-    }
+        clientEvent.off("SelectPlayerResponse", this.SelectPlayerResponse, this)
+        clientEvent.off("LoginAccountResponse", this.LoginAccountResponse, this)
 
+    }
 
     netconnect(ok: String) {
-        console.log("aaabbb");
-    }
-
-    GateLogincompleted() {
         this.mask.active = false;
     }
 
     LoginAccount() {
         var AccountName = this.accInput.string;
-        var packet1 = proto.message.C_A_LoginRequest.create();
+        var packet1 = proto.message.LoginAccountRequest.create();
         packet1.PacketHead = Packet.BuildPacketHead(0);
         packet1.AccountName = AccountName;
         packet1.BuildNo = BUILD_NO;
         packet1.Password = md5(ToSlat(AccountName, this.pwInput.string));
         packet1.Key = Dh.instance.ShareKey();
-        Packet.SendPacket("C_A_LoginRequest", packet1);
+        Packet.SendPacket("LoginAccountRequest", packet1);
     }
 
-    registerAccount() {
-        let AccountName = this.accInput.string;
-        let Password = md5(ToSlat(AccountName, this.pwInput.string));
-        let packet1 = proto.message.C_A_RegisterRequest.create();
-        packet1.PacketHead = Packet.BuildPacketHead(0);
-        packet1.AccountName = AccountName;
-        packet1.Password = Password;
-        Packet.SendPacket("C_A_RegisterRequest", packet1);
+    LoginAccountResponse(packet: proto.message.LoginAccountResponse) {
+        this.showErrLabel("登录失败")
     }
 
-    AccLoginError(packet: proto.message.A_C_LoginResponse) {
-        if (packet.Error == 0) {
-            director.loadScene("lobby")
-        } else {
-            this.showErrLabel("账号或密码错误")
-        }
-    }
-
-    AccountLoginCompleted(packet: proto.message.W_C_SelectPlayerResponse) {
-        playerMgr.instance.AccountID = packet.AccountId;
+    SelectPlayerResponse(packet: proto.message.SelectPlayerResponse) {
+        playerMgr.instance.gold = 0;
+        playerMgr.instance.AccountID = packet.AccountId
         if (packet.PlayerData.length != 0) {
+            dh.instance.ExchangePubk(packet.Key);
             playerMgr.instance.init(packet.PlayerData[0])
             director.loadScene("lobby")
         } else {
@@ -123,29 +103,6 @@ export class login extends Component {
                 this.errLabel.node.active = false;
         }, 1500);
     }
-
-    W_C_CreatePlayerResponse(packet: proto.message.W_C_CreatePlayerResponse) {
-        if (packet.Error == 0) {
-            let createRoleNode = find("CreateRole", this.node.parent)
-            if (createRoleNode) {
-                this.node.parent.removeChild(createRoleNode)
-            }
-            playerMgr.instance.gold = 0;
-            playerMgr.instance.playerID = packet.PlayerId;
-            playerMgr.instance.AccountID = packet.AccountId
-            director.loadScene("lobby")
-        } else {
-            this.showErrLabel("创建角色失败")
-        }
-    }
-
-    A_C_RegisterResponse(packet: proto.message.A_C_RegisterResponse) {
-        if (packet.Error != 0) {
-            this.showErrLabel("已注册")
-        } else {
-            this.showErrLabel("注册成功")
-        }
-    }
 }
 
 
@@ -157,22 +114,9 @@ function md5(content) {
     return Md5.Instance.get_md5(content)
 }
 
-//账号登录成功
-Packet.RegisterPacket("W_C_SelectPlayerResponse", function (packet) {
-    clientEvent.dispatchEvent("AccountLoginCompleted", packet);
+Packet.RegisterPacket("SelectPlayerResponse", function (packet) {
+    clientEvent.dispatchEvent("SelectPlayerResponse", packet);
 });
-
-//账号登录失败
-Packet.RegisterPacket("A_C_LoginResponse", function (packet) {
-    clientEvent.dispatchEvent("AccountLoginError", packet);
-});
-
-//创建角色响应
-Packet.RegisterPacket("W_C_CreatePlayerResponse", function (packet) {
-    clientEvent.dispatchEvent("W_C_CreatePlayerResponse", packet);
-});
-
-//注册响应
-Packet.RegisterPacket("A_C_RegisterResponse", function (packet) {
-    clientEvent.dispatchEvent("A_C_RegisterResponse", packet);
+Packet.RegisterPacket("LoginAccountResponse", function (packet) {
+    clientEvent.dispatchEvent("LoginAccountResponse", packet);
 });

@@ -1,15 +1,23 @@
-
-import { Network } from "./network";
-import { CRC32 } from "./crc";
+import { log } from "cc";
 import proto from "../../../Proto.js/proto.js";
+import { playerMgr } from "../../data/playerMgr";
+import { clientEvent } from "../clientEvent";
+import { CRC32 } from "./crc";
+import dh from "./dh";
 const message = proto.message;
 
-import dh from "./dh"
-import { clientEvent } from "../clientEvent";
+// const GAMEURL = "wss://huojuke.com:31700/ws";
+// const GAMEURL = "ws://10.10.24.145:31700/ws";
+const GAMEURL = "ws://192.168.31.21:31800/ws";
 
 var STX = 0X27;
 var CKX = 0x72;
 
+var SERVER_VERSION = 102008000;
+var MAX_PACKET_SIZE = 32 * 1024;
+var MySocket: WebSocket;
+var SocketTask: any;
+var isInit = false;
 
 function IntToBytes(v: number): Uint8Array {
     var b = new Uint8Array(4);
@@ -70,10 +78,10 @@ export namespace Packet {
         var buf = dat.slice(4);
         var packetcreator = m_packets[id];
         if (packetcreator != null) {
-            console.log(m_callbacks);
             var packet = packetcreator().decode(buf);
+            log("收到服务器消息：[", packet, "]");
             if (m_callbacks[id] == null) {
-                console.log("消息[", packet, "]没有注册!!!!!!!!!!!!!");
+                log("消息[", packet, "]没有注册!!!!!!!!!!!!!");
                 return false;
             }
             m_callbacks[id](packet);
@@ -85,6 +93,10 @@ export namespace Packet {
 
     //--发送包函数
     export function SendPacket(name: string, dat: any): boolean {
+        dat.PacketHead = Packet.BuildPacketHead(playerMgr.instance.AccountID);
+        if (dat.PlayerID != undefined) {
+            dat.PlayerID = playerMgr.instance.playerID;
+        }
         var id = CRC32.str(name.toLowerCase());
         var packetName = "message." + name;
         if (packetName != null) {
@@ -97,6 +109,7 @@ export namespace Packet {
                 buff.set(head, 0)
                 buff.set(crc, TCP_HEAD_SIZE);
                 buff.set(packet, TCP_HEAD_SIZE + crc.length);
+                console.log(`SendPacket : ${name} , data ${buff.toString()}`);
                 Network.Send(buff);
                 return true;
             }
@@ -151,7 +164,7 @@ export namespace Packet {
             var buff1 = buff.slice(nCurSize)
             var nBufferSize = buff1.length;
             nPacketSize = seekToTcpEnd(buff1)
-            //console.log(nPacketSize, nBufferSize, TCP_END_LENGTH)
+            // console.log(nPacketSize, nBufferSize, TCP_END_LENGTH)
             if (nPacketSize != 0) {
                 if (nBufferSize == nPacketSize) { //完整包
                     //print(string.sub(buff1, TCP_HEAD_SIZE, nPacketSize))
@@ -176,57 +189,78 @@ export namespace Packet {
         ParsePacekt();
     };
 
-    //tcp粘包特殊结束标志
-    /*export function ReceivePacket(dat : Uint8Array) : void{
-        function seekToTcpEnd(dat){
-            var nCurLen = indexOfMulti(dat, TCP_END);
-            if(nCurLen != -1){
-                return nCurLen + TCP_END_LENGTH;
-            }
-            return 0;
-        }
-
-        var buff = new Uint8Array(m_pInBuffer.length + dat.length);
-        buff.set(m_pInBuffer, 0);
-        buff.set(dat, m_pInBuffer.length);
-        m_pInBuffer = new Uint8Array(0);
-        var nCurSize = 0
-        function ParsePacekt(){
-            var nPacketSize = 0
-            var buff1 = buff.slice(nCurSize)
-            var nBufferSize = buff1.length;
-            nPacketSize = seekToTcpEnd(buff1)
-            //console.log(nPacketSize, nBufferSize, TCP_END_LENGTH)
-            if (nPacketSize != 0){
-                if(nBufferSize == nPacketSize){ //完整包
-                    //print(string.sub(buff1, 0, nPacketSize - TCP_END_LENGTH))
-                    HandlePacket(buff1.slice(0, nPacketSize - TCP_END_LENGTH))
-                    nCurSize =  nCurSize + nPacketSize
-                }
-                else if (nBufferSize > nPacketSize){
-                    //print(string.sub(buff1, 0, nPacketSize - TCP_END_LENGTH))
-                    HandlePacket(buff1.slice(0, nPacketSize - TCP_END_LENGTH))
-                    nCurSize =  nCurSize + nPacketSize
-                    ParsePacekt();
-                }
-                else if(nBufferSize < 128 * 1024){
-                    m_pInBuffer = buff.slice(nCurSize)
-                }
-                else{
-                    console.log("超出最大包限制，丢弃该包")
-                }
-            }
-        }
-
-        ParsePacekt();
-    };*/
-
     //--protobuf-- 自动化解析
     export function RegisterPacketCreator(name: string, func: any): void {
         var id = CRC32.str(name.toLowerCase());
         m_packets[id] = func;
     };
 }
+
+
+export namespace Network {
+    //发送消息
+    export function Send(data) {
+        if (!isInit) {
+            console.log('Network is not inited...');
+        } else {
+            MySocket.send(data);
+        }
+    }
+
+    export function Close() {
+        console.log("Network close...");
+        if (MySocket) {
+            MySocket.close();
+            MySocket = null;
+        }
+    }
+
+    export function init(): void {
+        console.log('Network initSocket...');
+        Init_Universal_Network();
+    }
+}
+
+function Init_Universal_Network() {
+    MySocket = new WebSocket(GAMEURL);
+    MySocket.binaryType = 'arraybuffer';
+
+    MySocket.onopen = function (evt) {
+        console.log('Network onopen...');
+        {
+            isInit = true;
+        }
+        clientEvent.dispatchEvent("NetConnect", "ok");
+
+        HeardPacket = setInterval(() => {
+            let _packet = proto.message.HeardPacket.create();
+            Packet.SendPacket("HeardPacket", _packet)
+            // log("心跳 HeardPacket")
+        }, 10000)
+    };
+
+    MySocket.onmessage = function (evt) {
+        // console.log("onmessage 收到数据 正在解包...")
+        var _data = new Uint8Array(evt.data);
+        Packet.ReceivePacket(_data);
+    };
+
+    MySocket.onerror = function (evt) {
+        console.log('Network onerror...');
+        clientEvent.dispatchEvent("network_error", "网络异常，请刷新");
+        clearInterval(HeardPacket)
+    };
+
+    MySocket.onclose = function (evt) {
+        console.log('Network onclose...');
+        clientEvent.dispatchEvent("network_error", "网络关闭，请重试");
+        isInit = false;
+        clearInterval(HeardPacket)
+    };
+}
+
+var HeardPacket;
+
 
 //tcp粘包特殊结束标志
 /*var TCP_END = new Uint8Array(7);      //解决tpc粘包半包,特殊结束标志,pb采用Varint编码高位有特殊含义
@@ -241,51 +275,19 @@ Packet.RegisterPacketCreator("HeardPacket", function () {
     return message.HeardPacket;
 })
 //注册pb消息体
-Packet.RegisterPacketCreator("W_C_SelectPlayerResponse", function () {
-    return message.W_C_SelectPlayerResponse;
+Packet.RegisterPacketCreator("LoginAccountRequest", function () {
+    return message.LoginAccountRequest;
 })
-Packet.RegisterPacketCreator("W_C_CreatePlayerResponse", function () {
-    return message.W_C_CreatePlayerResponse;
+Packet.RegisterPacketCreator("LoginAccountResponse", function () {
+    return message.LoginAccountResponse;
 })
-Packet.RegisterPacketCreator("C_W_Draw_ChatMessage", function () {
-    return message.C_W_Draw_ChatMessage;
+Packet.RegisterPacketCreator("CreatePlayerRequest", function () {
+    return message.CreatePlayerRequest;
 })
-Packet.RegisterPacketCreator("W_C_Draw_ChatMessage", function () {
-    return message.W_C_Draw_ChatMessage;
+Packet.RegisterPacketCreator("LoginPlayerRequset", function () {
+    return message.LoginPlayerRequset;
 })
-Packet.RegisterPacketCreator("C_G_LoginResquest", function () {
-    return message.C_G_LoginResquest;
+Packet.RegisterPacketCreator("SelectPlayerResponse", function () {
+    return message.SelectPlayerResponse;
 })
-Packet.RegisterPacketCreator("G_C_LoginResponse", function () {
-    return message.G_C_LoginResponse;
-})
-Packet.RegisterPacketCreator("A_C_LoginResponse", function () {
-    return message.A_C_LoginResponse;
-})
-Packet.RegisterPacketCreator("A_C_RegisterResponse", function () {
-    return message.A_C_RegisterResponse;
-})
-Packet.RegisterPacketCreator("C_A_LoginRequest", function () {
-    return message.C_A_LoginRequest;
-})
-Packet.RegisterPacketCreator("C_W_CreatePlayerRequest", function () {
-    return message.C_W_CreatePlayerRequest;
-})
-Packet.RegisterPacketCreator("C_A_RegisterRequest", function () {
-    return message.C_A_RegisterRequest;
-})
-
-Packet.RegisterPacketCreator("C_W_Game_LoginRequset", function () {
-    return message.C_W_Game_LoginRequset;
-})
-
-Packet.RegisterPacketCreator("W_C_RoomCountDown", function () {
-    return message.W_C_RoomCountDown;
-})
-//dh验证
-Packet.RegisterPacket("G_C_LoginResponse", function (packet) {
-    console.log(packet);
-    dh.instance.ExchangePubk(packet.Key);
-    // console.log(dh.instance.ShareKey())
-    clientEvent.dispatchEvent("GateLogincompleted");
-});
+//#endregion

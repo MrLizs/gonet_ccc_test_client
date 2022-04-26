@@ -8,6 +8,7 @@
       "__id__": 1
     },
     "optimizationPolicy": 0,
+    "persistent": false,
     "asyncLoadAssets": false
   },
   {
@@ -84,7 +85,7 @@
   },
   {
     "__type__": "cc.Node",
-    "_name": "selectplayer",
+    "_name": "CreatePlayer",
     "_objFlags": 0,
     "_parent": {
       "__id__": 1
@@ -183,6 +184,7 @@
     "_enableWrapText": false,
     "_font": null,
     "_isSystemFontUsed": true,
+    "_spacingX": 0,
     "_isItalic": false,
     "_isBold": false,
     "_isUnderline": false,
@@ -404,6 +406,7 @@
     "_enableWrapText": false,
     "_font": null,
     "_isSystemFontUsed": true,
+    "_spacingX": 0,
     "_isItalic": false,
     "_isBold": false,
     "_isUnderline": false,
@@ -618,6 +621,7 @@
     "_enableWrapText": true,
     "_font": null,
     "_isSystemFontUsed": true,
+    "_spacingX": 0,
     "_isItalic": false,
     "_isBold": true,
     "_isUnderline": false,
@@ -832,6 +836,7 @@
     "_enableWrapText": true,
     "_font": null,
     "_isSystemFontUsed": true,
+    "_spacingX": 0,
     "_isItalic": false,
     "_isBold": true,
     "_isUnderline": false,
@@ -1977,6 +1982,7 @@
     "_enableWrapText": false,
     "_font": null,
     "_isSystemFontUsed": true,
+    "_spacingX": 0,
     "_isItalic": false,
     "_isBold": true,
     "_isUnderline": false,
